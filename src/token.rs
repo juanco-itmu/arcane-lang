@@ -1,7 +1,7 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
-    // Keywords (Afrikaans)
-    Stel,       // variable declaration
+    // Keywords (Afrikaans) - Original
+    Stel,       // variable declaration (deprecated, use Laat)
     As,         // if
     Anders,     // else
     Terwyl,     // while
@@ -9,8 +9,20 @@ pub enum TokenType {
     Waar,       // true
     Vals,       // false
 
+    // Keywords (Afrikaans) - Functional
+    Funksie,    // function definition
+    Fn,         // lambda/anonymous function
+    Gee,        // return
+    Laat,       // let (immutable binding)
+    Mut,        // mutable marker
+    Pas,        // match
+    Geval,      // case
+    Tipe,       // type definition
+    Of,         // or (variant separator)
+
     // Literals
     Number(f64),
+    Str(String),    // string literal
     Identifier(String),
 
     // Operators
@@ -18,6 +30,7 @@ pub enum TokenType {
     Minus,          // -
     Star,           // *
     Slash,          // /
+    Percent,        // %
     Equal,          // =
     EqualEqual,     // ==
     Bang,           // !
@@ -34,6 +47,11 @@ pub enum TokenType {
     RightParen,     // )
     LeftBrace,      // {
     RightBrace,     // }
+    LeftBracket,    // [
+    RightBracket,   // ]
+    Comma,          // ,
+    Underscore,     // _ (wildcard pattern)
+    Arrow,          // -> (optional, for type annotations)
     Newline,
 
     // End of file

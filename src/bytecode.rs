@@ -1,19 +1,38 @@
-use crate::value::Value;
+use crate::value::{UpvalueDescriptor, Value};
 
 #[derive(Debug, Clone)]
 pub enum OpCode {
     Constant(usize),    // Push constant from pool
     Pop,                // Pop top of stack
 
-    GetVar(String),     // Load variable onto stack
-    SetVar(String),     // Store top of stack in variable
+    // Global variables
+    GetGlobal(String),  // Load global variable onto stack
+    SetGlobal(String),  // Store top of stack in global variable
+    DefineGlobal(String), // Define a new global variable
 
-    Add,                // +
+    // Local variables (stack-based)
+    GetLocal(usize),    // Load local at stack offset onto stack
+    SetLocal(usize),    // Store top of stack at stack offset
+
+    // Upvalues (closure captures)
+    GetUpvalue(usize),  // Load upvalue onto stack
+    SetUpvalue(usize),  // Store top of stack in upvalue
+    Closure(usize, Vec<UpvalueDescriptor>), // Create closure from function constant
+    CloseUpvalue,       // Close the topmost local variable
+
+    // Legacy aliases (will be removed)
+    GetVar(String),     // Load variable onto stack (deprecated)
+    SetVar(String),     // Store top of stack in variable (deprecated)
+
+    // Arithmetic
+    Add,                // + (also string concatenation)
     Subtract,           // -
     Multiply,           // *
     Divide,             // /
+    Modulo,             // %
     Negate,             // unary -
 
+    // Comparison
     Equal,              // ==
     NotEqual,           // !=
     Less,               // <
@@ -21,14 +40,30 @@ pub enum OpCode {
     Greater,            // >
     GreaterEqual,       // >=
 
+    // Logical
     Not,                // !
     And,                // && (short-circuit)
     Or,                 // || (short-circuit)
 
+    // Control flow
     Print,              // Print top of stack
     Jump(usize),        // Unconditional jump
     JumpIfFalse(usize), // Jump if top of stack is falsy
-    Return,             // End program
+
+    // Functions
+    Call(usize),        // Call function with N arguments
+    TailCall(usize),    // Tail call - reuse current frame
+    Return,             // Return from function (with value on stack)
+
+    // Lists
+    MakeList(usize),    // Create list from N values on stack
+    GetIndex,           // Get element at index: stack[list, index] -> value
+
+    // Pattern matching
+    CheckConstructor(String, usize),  // Check if TOS is constructor with name and arity
+    GetField(usize),                   // Get field at index from ADT at TOS (doesn't pop)
+    GetFieldPop(usize),                // Get field at index from ADT and pop the ADT
+    Dup,                               // Duplicate top of stack
 }
 
 #[derive(Debug, Clone)]

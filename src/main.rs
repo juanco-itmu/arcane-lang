@@ -86,9 +86,9 @@ fn run(source: &str) -> Result<(), String> {
 
     // Compiling
     let mut compiler = Compiler::new();
-    let chunk = compiler.compile(statements)?;
+    let (chunk, functions) = compiler.compile(statements)?;
 
     // Executing
-    let mut vm = VM::new(chunk);
+    let mut vm = VM::new(chunk, functions);
     vm.run()
 }

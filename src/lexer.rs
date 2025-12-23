@@ -37,9 +37,19 @@ impl Lexer {
             ')' => self.add_token(TokenType::RightParen),
             '{' => self.add_token(TokenType::LeftBrace),
             '}' => self.add_token(TokenType::RightBrace),
+            '[' => self.add_token(TokenType::LeftBracket),
+            ']' => self.add_token(TokenType::RightBracket),
+            ',' => self.add_token(TokenType::Comma),
             '+' => self.add_token(TokenType::Plus),
-            '-' => self.add_token(TokenType::Minus),
+            '-' => {
+                if self.match_char('>') {
+                    self.add_token(TokenType::Arrow);
+                } else {
+                    self.add_token(TokenType::Minus);
+                }
+            }
             '*' => self.add_token(TokenType::Star),
+            '%' => self.add_token(TokenType::Percent),
             '/' => {
                 if self.match_char('/') {
                     // Comment - skip until end of line
@@ -50,9 +60,12 @@ impl Lexer {
                     self.add_token(TokenType::Slash);
                 }
             }
+            '"' => self.string()?,
             '=' => {
                 let token = if self.match_char('=') {
                     TokenType::EqualEqual
+                } else if self.match_char('>') {
+                    TokenType::Arrow  // => for pattern matching
                 } else {
                     TokenType::Equal
                 };
@@ -140,6 +153,7 @@ impl Lexer {
 
         let lexeme: String = self.source[self.start..self.current].iter().collect();
         let token_type = match lexeme.as_str() {
+            // Original keywords
             "stel" => TokenType::Stel,
             "as" => TokenType::As,
             "anders" => TokenType::Anders,
@@ -147,10 +161,84 @@ impl Lexer {
             "druk" => TokenType::Druk,
             "waar" => TokenType::Waar,
             "vals" => TokenType::Vals,
+            // Functional keywords
+            "funksie" => TokenType::Funksie,
+            "fn" => TokenType::Fn,
+            "gee" => TokenType::Gee,
+            "laat" => TokenType::Laat,
+            "mut" => TokenType::Mut,
+            "pas" => TokenType::Pas,
+            "geval" => TokenType::Geval,
+            "tipe" => TokenType::Tipe,
+            "of" => TokenType::Of,
+            // Wildcard pattern
+            "_" => TokenType::Underscore,
             _ => TokenType::Identifier(lexeme.clone()),
         };
 
         self.add_token(token_type);
+    }
+
+    fn string(&mut self) -> Result<(), String> {
+        let start_line = self.line;
+
+        while self.peek() != '"' && !self.is_at_end() {
+            if self.peek() == '\n' {
+                self.line += 1;
+            }
+            if self.peek() == '\\' && !self.is_at_end() {
+                self.advance(); // consume the backslash
+                if !self.is_at_end() {
+                    self.advance(); // consume the escaped character
+                }
+            } else {
+                self.advance();
+            }
+        }
+
+        if self.is_at_end() {
+            return Err(format!("Onbeëindigde string op lyn {}", start_line));
+        }
+
+        // Consume the closing "
+        self.advance();
+
+        // Extract the string value (without quotes)
+        let value: String = self.source[self.start + 1..self.current - 1]
+            .iter()
+            .collect();
+
+        // Process escape sequences
+        let processed = self.process_escapes(&value)?;
+        self.add_token(TokenType::Str(processed));
+        Ok(())
+    }
+
+    fn process_escapes(&self, s: &str) -> Result<String, String> {
+        let mut result = String::new();
+        let mut chars = s.chars().peekable();
+
+        while let Some(c) = chars.next() {
+            if c == '\\' {
+                match chars.next() {
+                    Some('n') => result.push('\n'),
+                    Some('t') => result.push('\t'),
+                    Some('r') => result.push('\r'),
+                    Some('\\') => result.push('\\'),
+                    Some('"') => result.push('"'),
+                    Some(other) => {
+                        return Err(format!("Ongeldige ontsnappingskarakter: \\{}", other));
+                    }
+                    None => {
+                        return Err("Onverwagte einde van string na \\".to_string());
+                    }
+                }
+            } else {
+                result.push(c);
+            }
+        }
+
+        Ok(result)
     }
 
     fn is_at_end(&self) -> bool {
