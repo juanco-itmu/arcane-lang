@@ -676,8 +676,23 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                     }
                 }
             }
-            TokenType::As | TokenType::Terwyl => {
-                // Check for: as/terwyl (condition) {
+            TokenType::As => {
+                // Check that 'as' is NOT followed by '(' - parentheses are forbidden
+                if i + 1 < tokens.len() && matches!(tokens[i + 1].token_type, TokenType::LeftParen) {
+                    diagnostics.push(Diagnostic {
+                        range: Range {
+                            start: Position { line: tokens[i + 1].line, character: tokens[i + 1].start_col },
+                            end: Position { line: tokens[i + 1].line, character: tokens[i + 1].end_col },
+                        },
+                        severity: Some(DiagnosticSeverity::ERROR),
+                        source: Some("arcane".to_string()),
+                        message: "Moenie hakies gebruik na 'as' nie. Skryf: as voorwaarde { ... }".to_string(),
+                        ..Default::default()
+                    });
+                }
+            }
+            TokenType::Terwyl => {
+                // Check for: terwyl (condition) {
                 if i + 1 < tokens.len() && !matches!(tokens[i + 1].token_type, TokenType::LeftParen) {
                     diagnostics.push(Diagnostic {
                         range: Range {
@@ -686,7 +701,7 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                         },
                         severity: Some(DiagnosticSeverity::ERROR),
                         source: Some("arcane".to_string()),
-                        message: format!("Verwag '(' na '{}'", token.lexeme),
+                        message: "Verwag '(' na 'terwyl'".to_string(),
                         ..Default::default()
                     });
                 }
