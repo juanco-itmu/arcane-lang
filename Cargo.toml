@@ -1,0 +1,7 @@
+[package]
+name = "arcane-lang"
+version = "0.1.0"
+edition = "2021"
+description = "A programming language with Afrikaans keywords"
+
+[dependencies]
