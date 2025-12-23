@@ -400,6 +400,19 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                 }
             }
         }
+        // For 'geval' pattern matching - collect pattern bindings (identifiers between geval and =>)
+        if matches!(tokens[j].token_type, TokenType::Geval) {
+            let mut k = j + 1;
+            while k < tokens.len() && !matches!(tokens[k].token_type, TokenType::Arrow) {
+                if let TokenType::Identifier(name) = &tokens[k].token_type {
+                    // Only add lowercase identifiers (not constructors which start uppercase)
+                    if name.chars().next().map(|c| c.is_lowercase()).unwrap_or(false) {
+                        declared_vars.insert(name.clone());
+                    }
+                }
+                k += 1;
+            }
+        }
         j += 1;
     }
 
@@ -429,6 +442,9 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
     let mut in_type_def = false;
     let mut type_def_brace_depth = 0;
 
+    // Track if we're inside a pattern (between 'geval' and '=>')
+    let mut in_pattern = false;
+
     while i < tokens.len() {
         let token = &tokens[i];
 
@@ -444,6 +460,14 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
             if type_def_brace_depth == 0 {
                 in_type_def = false;
             }
+        }
+
+        // Track entering/exiting patterns (between 'geval' and '=>')
+        if matches!(token.token_type, TokenType::Geval) {
+            in_pattern = true;
+        }
+        if matches!(token.token_type, TokenType::Arrow) {
+            in_pattern = false;
         }
 
         match &token.token_type {
@@ -701,9 +725,6 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                 // Check for tipe declaration context
                 let is_type_name = i > 0 && matches!(tokens[i - 1].token_type, TokenType::Tipe);
 
-                // Check for geval pattern context (inside pattern matching)
-                let is_pattern = i > 0 && matches!(tokens[i - 1].token_type, TokenType::Geval);
-
                 // Check if this is a function call (followed by '(')
                 let is_function_call = i + 1 < tokens.len()
                     && matches!(tokens[i + 1].token_type, TokenType::LeftParen);
@@ -726,7 +747,7 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                             ..Default::default()
                         });
                     }
-                } else if !is_declaration && !is_funksie_name && !is_type_name && !is_pattern {
+                } else if !is_declaration && !is_funksie_name && !is_type_name && !in_pattern {
                     if !declared_vars.contains(name) && !declared_funcs.contains(name) {
                         diagnostics.push(Diagnostic {
                             range: Range {
