@@ -4,4 +4,16 @@ version = "0.1.0"
 edition = "2021"
 description = "A programming language with Afrikaans keywords"
 
+[[bin]]
+name = "arcane"
+path = "src/main.rs"
+
+[[bin]]
+name = "arcane-lsp"
+path = "src/lsp/main.rs"
+
 [dependencies]
+tower-lsp = "0.20"
+tokio = { version = "1", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"

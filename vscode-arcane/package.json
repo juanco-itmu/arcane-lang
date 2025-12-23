@@ -1,27 +1,28 @@
 {
   "name": "arcane-lang",
   "displayName": "Arcane Language",
-  "description": "'n Afrikaanse programmeertaal - Syntax highlighting and snippets",
-  "version": "0.1.0",
+  "description": "'n Afrikaanse programmeertaal - Syntax highlighting, snippets, and LSP",
+  "version": "0.2.0",
   "publisher": "arcane",
   "engines": {
-    "vscode": "^1.70.0"
+    "vscode": "^1.75.0"
   },
   "categories": [
     "Programming Languages",
-    "Snippets"
+    "Snippets",
+    "Linters"
   ],
+  "activationEvents": [
+    "onLanguage:arcane"
+  ],
+  "main": "./out/extension.js",
   "contributes": {
     "languages": [
       {
         "id": "arcane",
         "aliases": ["Arcane", "arcane"],
         "extensions": [".arc"],
-        "configuration": "./language-configuration.json",
-        "icon": {
-          "light": "./icons/arcane-light.png",
-          "dark": "./icons/arcane-dark.png"
-        }
+        "configuration": "./language-configuration.json"
       }
     ],
     "grammars": [
@@ -36,7 +37,31 @@
         "language": "arcane",
         "path": "./snippets/arcane.json"
       }
-    ]
+    ],
+    "configuration": {
+      "type": "object",
+      "title": "Arcane",
+      "properties": {
+        "arcane.serverPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to the arcane-lsp executable. Leave empty to use the bundled server."
+        }
+      }
+    }
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "@types/vscode": "^1.75.0",
+    "typescript": "^5.0.0"
   },
   "repository": {
     "type": "git",
