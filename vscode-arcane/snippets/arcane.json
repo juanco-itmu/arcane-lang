@@ -107,7 +107,7 @@
   "If Statement": {
     "prefix": "as",
     "body": [
-      "as (${1:voorwaarde}) {",
+      "as ${1:voorwaarde} {",
       "\t$0",
       "}"
     ],
@@ -116,7 +116,7 @@
   "If-Else Statement": {
     "prefix": "asanders",
     "body": [
-      "as (${1:voorwaarde}) {",
+      "as ${1:voorwaarde} {",
       "\t$2",
       "} anders {",
       "\t$0",
@@ -174,7 +174,7 @@
     "prefix": "tailrec",
     "body": [
       "funksie ${1:naam}(${2:n}, ${3:acc}) {",
-      "\tas (${4:basisgeval}) {",
+      "\tas ${4:basisgeval} {",
       "\t\tgee ${3:acc}",
       "\t} anders {",
       "\t\tgee ${1:naam}(${5:n - 1}, ${0:nuwe_acc})",

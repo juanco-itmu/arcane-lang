@@ -64,7 +64,7 @@ druk(kleure)
 
 // ADTs as function arguments and return values
 funksie maak_opsie(x) {
-    as (x > 0) {
+    as x > 0 {
         gee Sommige(x)
     } anders {
         gee Niks()

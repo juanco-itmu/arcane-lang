@@ -15,7 +15,7 @@ druk("3 + 4 = " + resultaat)
 
 // Test recursion (factorial)
 funksie fakulteit(n) {
-    as (n <= 1) {
+    as n <= 1 {
         gee 1
     }
     gee n * fakulteit(n - 1)

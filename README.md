@@ -75,7 +75,7 @@ druk(resultaat)  // 7
 
 // Recursion
 funksie fakulteit(n) {
-    as (n <= 1) {
+    as n <= 1 {
         gee 1
     }
     gee n * fakulteit(n - 1)
@@ -108,7 +108,7 @@ druk(plus_vyf(10))  // 15
 // If-else
 laat x = 10
 
-as (x > 5) {
+as x > 5 {
     druk("x is groter as 5")
 } anders {
     druk("x is 5 of minder")

@@ -174,9 +174,10 @@ impl Parser {
     }
 
     fn if_statement(&mut self) -> Result<Stmt, String> {
-        self.consume(&TokenType::LeftParen, "Verwag '(' na 'as'.")?;
+        if self.check(&TokenType::LeftParen) {
+            return Err("Moenie hakies gebruik na 'as' nie. Skryf: as voorwaarde { ... }".to_string());
+        }
         let condition = self.expression()?;
-        self.consume(&TokenType::RightParen, "Verwag ')' na voorwaarde.")?;
         self.skip_newlines();
 
         self.consume(&TokenType::LeftBrace, "Verwag '{' na 'as' voorwaarde.")?;
@@ -539,9 +540,10 @@ impl Parser {
     }
 
     fn if_expr(&mut self) -> Result<Expr, String> {
-        self.consume(&TokenType::LeftParen, "Verwag '(' na 'as'.")?;
-        let condition = self.expression()?;
-        self.consume(&TokenType::RightParen, "Verwag ')' na voorwaarde.")?;
+        if self.check(&TokenType::LeftParen) {
+            return Err("Moenie hakies gebruik na 'as' nie.".to_string());
+        }
+        let condition = self.or()?; // Use or() to stop before 'anders'
 
         let then_branch = self.expression()?;
 

@@ -837,11 +837,11 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
                     "Declare a new variable"
                 )),
                 TokenType::As => Some((
-                    "**as** (sleutelwoord)\n\nVoorwaardelike stelling (if statement).\n\n```arcane\nas (x > 5) {\n    druk(x)\n}\n```",
+                    "**as** (sleutelwoord)\n\nVoorwaardelike stelling (if statement).\n\n```arcane\nas x > 5 {\n    druk(x)\n}\n```",
                     "Conditional statement (if)"
                 )),
                 TokenType::Anders => Some((
-                    "**anders** (sleutelwoord)\n\nAlternatiewe tak van 'as' stelling.\n\n```arcane\nas (x > 5) {\n    druk(\"groot\")\n} anders {\n    druk(\"klein\")\n}\n```",
+                    "**anders** (sleutelwoord)\n\nAlternatiewe tak van 'as' stelling.\n\n```arcane\nas x > 5 {\n    druk(\"groot\")\n} anders {\n    druk(\"klein\")\n}\n```",
                     "Else branch"
                 )),
                 TokenType::Terwyl => Some((
@@ -1041,7 +1041,7 @@ pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
             label: "as".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
             detail: Some("As-stelling (if)".to_string()),
-            insert_text: Some("as (${1:voorwaarde}) {\n\t${0}\n}".to_string()),
+            insert_text: Some("as ${1:voorwaarde} {\n\t${0}\n}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..Default::default()
         },
