@@ -2,7 +2,7 @@
   "name": "arkaan-lang",
   "displayName": "Arkaan Language",
   "description": "'n Afrikaanse programmeertaal - Syntax highlighting, snippets, and LSP",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "publisher": "arcane-lang",
   "engines": {
     "vscode": "^1.75.0"
@@ -87,5 +87,6 @@
     "type": "git",
     "url": "https://github.com/yourusername/arkaan-lang"
   },
-  "license": "MIT"
+  "license": "Proprietary",
+  "icon": "icons/arkaan.png"
 }
