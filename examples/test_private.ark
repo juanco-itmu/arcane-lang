@@ -1,0 +1,6 @@
+// test_private.ark - test that private functions are hidden
+
+laai "math.ark" as math
+
+// This should fail - internal_helper is not exported
+druk(math.internal_helper())

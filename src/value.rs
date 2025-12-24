@@ -1,13 +1,16 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::fmt;
 use std::rc::Rc;
+
+use crate::bytecode::Chunk;
 
 /// Represents a compiled function
 #[derive(Debug, Clone)]
 pub struct Function {
     pub name: String,
     pub arity: usize,
-    pub chunk_index: usize,       // Index into the VM's functions vector
+    pub chunk: Rc<Chunk>,         // The function's bytecode chunk
     pub upvalue_count: usize,     // Number of upvalues this function captures
 }
 
@@ -67,6 +70,14 @@ pub struct AdtInstance {
     pub fields: Vec<Value>,         // Field values
 }
 
+/// A loaded module with its exported symbols
+#[derive(Debug, Clone)]
+pub struct Module {
+    pub name: String,                       // The alias name
+    pub path: String,                       // Original file path
+    pub exports: HashMap<String, Value>,    // Exported symbols
+}
+
 #[derive(Debug, Clone)]
 pub enum Value {
     Number(f64),
@@ -81,6 +92,8 @@ pub enum Value {
     TypeConstructor(Rc<TypeConstructorDef>),
     // ADT instance (result of calling constructor)
     Adt(Rc<AdtInstance>),
+    // Loaded module
+    Module(Rc<Module>),
 }
 
 impl Value {
@@ -96,6 +109,7 @@ impl Value {
             Value::NativeFunction(_) => true,
             Value::TypeConstructor(_) => true,
             Value::Adt(_) => true,
+            Value::Module(_) => true,
         }
     }
 }
@@ -147,6 +161,7 @@ impl fmt::Display for Value {
                 }
                 Ok(())
             }
+            Value::Module(m) => write!(f, "<module {}>", m.name),
         }
     }
 }
@@ -168,6 +183,7 @@ impl PartialEq for Value {
                     && a.constructor_name == b.constructor_name
                     && a.fields == b.fields
             }
+            (Value::Module(a), Value::Module(b)) => Rc::ptr_eq(a, b),
             _ => false,
         }
     }

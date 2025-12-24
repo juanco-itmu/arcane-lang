@@ -64,6 +64,10 @@ pub enum OpCode {
     GetField(usize),                   // Get field at index from ADT at TOS (doesn't pop)
     GetFieldPop(usize),                // Get field at index from ADT and pop the ADT
     Dup,                               // Duplicate top of stack
+
+    // Modules
+    LoadModule(String, String),        // Load module: (path, alias) -> pushes Module value
+    GetMember(String),                 // Get member from module on stack
 }
 
 #[derive(Debug, Clone)]

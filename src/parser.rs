@@ -25,7 +25,13 @@ impl Parser {
     }
 
     fn declaration(&mut self) -> Result<Stmt, String> {
-        if self.check(&TokenType::Funksie) {
+        if self.check(&TokenType::Laai) {
+            self.advance();
+            self.import_declaration()
+        } else if self.check(&TokenType::Verskaf) {
+            self.advance();
+            self.export_declaration()
+        } else if self.check(&TokenType::Funksie) {
             self.advance();
             self.fun_declaration()
         } else if self.check(&TokenType::Stel) {
@@ -39,6 +45,65 @@ impl Parser {
             self.type_declaration()
         } else {
             self.statement()
+        }
+    }
+
+    fn import_declaration(&mut self) -> Result<Stmt, String> {
+        // laai "path" as name
+        let path = if let TokenType::Str(s) = &self.peek().token_type {
+            let path = s.clone();
+            self.advance();
+            path
+        } else {
+            return Err(format!(
+                "Verwag string lêerpad na 'laai'. (lyn {})",
+                self.peek().line
+            ));
+        };
+
+        // Expect "as" keyword (As is the token for "if" in Arkaan, reusing it here for import alias)
+        if self.check(&TokenType::As) {
+            self.advance();
+        } else {
+            return Err(format!(
+                "Verwag 'as' na lêerpad. (lyn {})",
+                self.peek().line
+            ));
+        }
+
+        let alias = self.consume_identifier("Verwag module naam na 'as'.")?;
+        self.consume_newline_or_eof()?;
+
+        Ok(Stmt::Import { path, alias })
+    }
+
+    fn export_declaration(&mut self) -> Result<Stmt, String> {
+        // verskaf funksie name(...) { ... }
+        // verskaf laat name = ...
+        // verskaf stel name = ...
+        if self.check(&TokenType::Funksie) {
+            self.advance();
+            let Stmt::FunDecl { name, params, body } = self.fun_declaration()? else {
+                unreachable!()
+            };
+            Ok(Stmt::ExportFunDecl { name, params, body })
+        } else if self.check(&TokenType::Laat) {
+            self.advance();
+            let Stmt::VarDecl { name, initializer, is_mutable } = self.var_declaration(false)? else {
+                unreachable!()
+            };
+            Ok(Stmt::ExportVarDecl { name, initializer, is_mutable })
+        } else if self.check(&TokenType::Stel) {
+            self.advance();
+            let Stmt::VarDecl { name, initializer, is_mutable } = self.var_declaration(true)? else {
+                unreachable!()
+            };
+            Ok(Stmt::ExportVarDecl { name, initializer, is_mutable })
+        } else {
+            Err(format!(
+                "Verwag 'funksie', 'laat', of 'stel' na 'verskaf'. (lyn {})",
+                self.peek().line
+            ))
         }
     }
 
@@ -388,6 +453,13 @@ impl Parser {
                 expr = Expr::Index {
                     object: Box::new(expr),
                     index: Box::new(index),
+                };
+            } else if self.check(&TokenType::Dot) {
+                self.advance();
+                let member = self.consume_identifier("Verwag lid naam na '.'")?;
+                expr = Expr::MemberAccess {
+                    object: Box::new(expr),
+                    member,
                 };
             } else {
                 break;

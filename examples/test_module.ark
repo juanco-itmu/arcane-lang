@@ -1,0 +1,9 @@
+// test_module.ark - test the module system
+
+laai "math.ark" as math
+
+druk("Testing module system:")
+druk("math.add(1, 2) = " + math.add(1, 2))
+druk("math.subtract(10, 3) = " + math.subtract(10, 3))
+druk("math.multiply(4, 5) = " + math.multiply(4, 5))
+druk("math.PI = " + math.PI)

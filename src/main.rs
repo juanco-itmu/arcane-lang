@@ -10,6 +10,7 @@ mod vm;
 use std::env;
 use std::fs;
 use std::io::{self, Write};
+use std::path::PathBuf;
 
 use compiler::Compiler;
 use lexer::Lexer;
@@ -38,10 +39,37 @@ fn run_file(path: &str) {
         }
     };
 
-    if let Err(e) = run(&source) {
+    if let Err(e) = run_with_path(&source, path) {
         eprintln!("Fout: {}", e);
         std::process::exit(70);
     }
+}
+
+fn run_with_path(source: &str, path: &str) -> Result<(), String> {
+    // Lexing
+    let mut lexer = Lexer::new(source);
+    let tokens = lexer.scan_tokens()?;
+
+    // Parsing
+    let mut parser = Parser::new(tokens);
+    let statements = parser.parse()?;
+
+    // Compiling
+    let mut compiler = Compiler::new();
+    let (chunk, functions) = compiler.compile(statements)?;
+
+    // Executing
+    let mut vm = VM::new(chunk, functions);
+
+    // Set the current file path for relative imports
+    let file_path = PathBuf::from(path);
+    if let Ok(canonical) = file_path.canonicalize() {
+        vm.set_current_file(canonical);
+    } else {
+        vm.set_current_file(file_path);
+    }
+
+    vm.run()
 }
 
 fn repl() {

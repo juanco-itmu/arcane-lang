@@ -1,0 +1,20 @@
+// math.ark - a module with math functions
+
+verskaf funksie add(a, b) {
+    gee a + b
+}
+
+verskaf funksie subtract(a, b) {
+    gee a - b
+}
+
+verskaf funksie multiply(a, b) {
+    gee a * b
+}
+
+// Private helper - not exported
+funksie internal_helper() {
+    gee 42
+}
+
+verskaf laat PI = 3.14159

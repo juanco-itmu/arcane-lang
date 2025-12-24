@@ -20,6 +20,10 @@ pub enum TokenType {
     Tipe,       // type definition
     Of,         // or (variant separator)
 
+    // Keywords (Afrikaans) - Modules
+    Laai,       // import/load module
+    Verskaf,    // export/provide
+
     // Literals
     Number(f64),
     Str(String),    // string literal
@@ -50,6 +54,7 @@ pub enum TokenType {
     LeftBracket,    // [
     RightBracket,   // ]
     Comma,          // ,
+    Dot,            // . (member access)
     Underscore,     // _ (wildcard pattern)
     Arrow,          // -> (optional, for type annotations)
     Newline,

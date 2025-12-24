@@ -1,9 +1,13 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
 use crate::bytecode::{Chunk, OpCode};
-use crate::value::{AdtInstance, Closure, Function, NativeFunction, TypeConstructorDef, Upvalue, UpvalueLocation, Value};
+use crate::compiler::Compiler;
+use crate::lexer::Lexer;
+use crate::parser::Parser;
+use crate::value::{AdtInstance, Closure, Function, Module, NativeFunction, TypeConstructorDef, Upvalue, UpvalueLocation, Value};
 
 #[derive(Debug, Clone)]
 struct CallFrame {
@@ -20,6 +24,8 @@ pub struct VM {
     stack: Vec<Value>,
     globals: HashMap<String, Value>,
     open_upvalues: Vec<Rc<RefCell<Upvalue>>>,  // Open upvalues pointing to stack
+    module_cache: HashMap<PathBuf, Rc<Module>>,  // Cached modules
+    current_file: Option<PathBuf>,               // Current file path for relative imports
 }
 
 impl VM {
@@ -31,9 +37,104 @@ impl VM {
             stack: Vec::new(),
             globals: HashMap::new(),
             open_upvalues: Vec::new(),
+            module_cache: HashMap::new(),
+            current_file: None,
         };
         vm.define_natives();
         vm
+    }
+
+    pub fn set_current_file(&mut self, path: PathBuf) {
+        self.current_file = Some(path);
+    }
+
+    fn resolve_module_path(&self, path: &str) -> Result<PathBuf, String> {
+        let path = Path::new(path);
+
+        if path.is_absolute() {
+            Ok(path.to_path_buf())
+        } else if let Some(ref current) = self.current_file {
+            // Relative to current file's directory
+            let dir = current.parent().unwrap_or(Path::new("."));
+            Ok(dir.join(path))
+        } else {
+            // Relative to current working directory
+            Ok(PathBuf::from(path))
+        }
+    }
+
+    fn load_module(&mut self, path: &str, alias: &str) -> Result<Value, String> {
+        // Resolve the path relative to current file
+        let resolved_path = self.resolve_module_path(path)?;
+
+        // Check cache first
+        if let Some(cached) = self.module_cache.get(&resolved_path) {
+            return Ok(Value::Module(Rc::clone(cached)));
+        }
+
+        // Read the source file
+        let source = std::fs::read_to_string(&resolved_path)
+            .map_err(|e| format!("Kon nie module '{}' laai nie: {}", path, e))?;
+
+        // Save current state
+        let old_file = self.current_file.take();
+        self.current_file = Some(resolved_path.clone());
+
+        // Compile the module
+        let mut lexer = Lexer::new(&source);
+        let tokens = lexer.scan_tokens()?;
+
+        let mut parser = Parser::new(tokens);
+        let statements = parser.parse()?;
+
+        let mut compiler = Compiler::new();
+        let (chunk, functions) = compiler.compile(statements)?;
+        let exports = compiler.get_exports().clone();
+
+        // Execute the module to populate globals
+        // Save current VM state
+        let old_globals = std::mem::take(&mut self.globals);
+        let old_functions = std::mem::replace(&mut self.functions, functions);
+        let old_stack = std::mem::take(&mut self.stack);
+        let old_frames = std::mem::take(&mut self.frames);
+
+        // Re-add native functions for the module
+        self.define_natives();
+
+        // Run the module's initialization code
+        self.run_chunk(&chunk)?;
+
+        // Capture the module's globals
+        let module_globals = std::mem::take(&mut self.globals);
+
+        // Restore original state
+        self.globals = old_globals;
+        self.functions = old_functions;
+        self.stack = old_stack;
+        self.frames = old_frames;
+
+        // Restore current file
+        self.current_file = old_file;
+
+        // Extract only exported symbols
+        let mut exported_values = HashMap::new();
+        for name in &exports {
+            if let Some(value) = module_globals.get(name) {
+                exported_values.insert(name.clone(), value.clone());
+            }
+        }
+
+        // Create module value
+        let module = Rc::new(Module {
+            name: alias.to_string(),
+            path: path.to_string(),
+            exports: exported_values,
+        });
+
+        // Cache it
+        self.module_cache.insert(resolved_path, Rc::clone(&module));
+
+        Ok(Value::Module(module))
     }
 
     fn define_natives(&mut self) {
@@ -532,7 +633,7 @@ impl VM {
                             }
 
                             // Get the function's chunk
-                            let func_chunk = self.functions[func.chunk_index].clone();
+                            let func_chunk = Rc::clone(&func.chunk);
 
                             // Push a new call frame
                             self.frames.push(CallFrame {
@@ -564,7 +665,7 @@ impl VM {
                             }
 
                             // Get the function's chunk
-                            let func_chunk = self.functions[closure.function.chunk_index].clone();
+                            let func_chunk = Rc::clone(&closure.function.chunk);
 
                             // Push a new call frame with the closure
                             self.frames.push(CallFrame {
@@ -766,6 +867,28 @@ impl VM {
                 OpCode::TailCall(_) => {
                     // TailCall should never appear in the main script chunk
                     return Err("TailCall kan nie in die hoofskrip gebruik word nie.".to_string());
+                }
+                OpCode::LoadModule(path, alias) => {
+                    let module = self.load_module(path, alias)?;
+                    self.push(module);
+                }
+                OpCode::GetMember(member) => {
+                    let object = self.pop()?;
+                    match object {
+                        Value::Module(module) => {
+                            if let Some(value) = module.exports.get(member) {
+                                self.push(value.clone());
+                            } else {
+                                return Err(format!(
+                                    "Module '{}' het nie lid '{}' nie.",
+                                    module.name, member
+                                ));
+                            }
+                        }
+                        _ => {
+                            return Err("Kan slegs lede van modules kry.".to_string());
+                        }
+                    }
                 }
             }
         }
@@ -1042,7 +1165,7 @@ impl VM {
                                 ));
                             }
 
-                            let func_chunk = self.functions[func.chunk_index].clone();
+                            let func_chunk = Rc::clone(&func.chunk);
 
                             self.frames.push(CallFrame {
                                 closure: None,
@@ -1067,7 +1190,7 @@ impl VM {
                                 ));
                             }
 
-                            let func_chunk = self.functions[cl.function.chunk_index].clone();
+                            let func_chunk = Rc::clone(&cl.function.chunk);
 
                             self.frames.push(CallFrame {
                                 closure: Some(Rc::clone(&cl)),
@@ -1199,7 +1322,7 @@ impl VM {
                             }
 
                             // Update chunk and reset IP
-                            current_chunk = self.functions[func.chunk_index].clone();
+                            current_chunk = Rc::clone(&func.chunk);
                             current_closure = None;
                             ip = 0;
                             // Continue the loop with the new function
@@ -1223,7 +1346,7 @@ impl VM {
                             }
 
                             // Update chunk, closure, and reset IP
-                            current_chunk = self.functions[cl.function.chunk_index].clone();
+                            current_chunk = Rc::clone(&cl.function.chunk);
                             current_closure = Some(Rc::clone(&cl));
                             ip = 0;
                             // Continue the loop with the new function
@@ -1372,6 +1495,28 @@ impl VM {
                         }
                     }
                 }
+                OpCode::LoadModule(path, alias) => {
+                    let module = self.load_module(path, alias)?;
+                    self.push(module);
+                }
+                OpCode::GetMember(member) => {
+                    let object = self.pop()?;
+                    match object {
+                        Value::Module(module) => {
+                            if let Some(value) = module.exports.get(member) {
+                                self.push(value.clone());
+                            } else {
+                                return Err(format!(
+                                    "Module '{}' het nie lid '{}' nie.",
+                                    module.name, member
+                                ));
+                            }
+                        }
+                        _ => {
+                            return Err("Kan slegs lede van modules kry.".to_string());
+                        }
+                    }
+                }
             }
         }
     }
@@ -1454,6 +1599,7 @@ impl VM {
                     && x.fields.len() == y.fields.len()
                     && x.fields.iter().zip(y.fields.iter()).all(|(a, b)| self.values_equal(a, b))
             }
+            (Value::Module(x), Value::Module(y)) => Rc::ptr_eq(x, y),
             _ => false,
         }
     }
@@ -1476,7 +1622,7 @@ impl VM {
                     self.push(arg);
                 }
 
-                let func_chunk = self.functions[func.chunk_index].clone();
+                let func_chunk = Rc::clone(&func.chunk);
 
                 self.frames.push(CallFrame {
                     closure: None,
@@ -1507,7 +1653,7 @@ impl VM {
                     self.push(arg);
                 }
 
-                let func_chunk = self.functions[closure.function.chunk_index].clone();
+                let func_chunk = Rc::clone(&closure.function.chunk);
 
                 self.frames.push(CallFrame {
                     closure: Some(Rc::clone(&closure)),

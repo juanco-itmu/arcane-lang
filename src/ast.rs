@@ -46,6 +46,11 @@ pub enum Expr {
         then_branch: Box<Expr>,
         else_branch: Box<Expr>,
     },
+    // Member access for modules: module.member
+    MemberAccess {
+        object: Box<Expr>,
+        member: String,
+    },
 }
 
 /// Represents a type constructor definition
@@ -125,5 +130,22 @@ pub enum Stmt {
     TypeDecl {
         name: String,
         constructors: Vec<TypeConstructor>,
+    },
+    // Module import: laai "path" as name
+    Import {
+        path: String,
+        alias: String,
+    },
+    // Exported function declaration
+    ExportFunDecl {
+        name: String,
+        params: Vec<String>,
+        body: Vec<Stmt>,
+    },
+    // Exported variable declaration
+    ExportVarDecl {
+        name: String,
+        initializer: Expr,
+        is_mutable: bool,
     },
 }

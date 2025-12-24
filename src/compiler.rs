@@ -2,6 +2,7 @@ use crate::ast::{Expr, LambdaBody, Literal, Pattern, Stmt};
 use crate::bytecode::{Chunk, OpCode};
 use crate::token::TokenType;
 use crate::value::{Function, TypeConstructorDef, UpvalueDescriptor, Value};
+use std::collections::HashSet;
 use std::rc::Rc;
 
 // Hidden local variable names used for pattern matching
@@ -74,6 +75,7 @@ pub struct Compiler {
     current: FunctionCompiler,
     enclosing: Option<Box<Compiler>>,
     functions: Vec<Rc<Chunk>>,
+    exported_symbols: HashSet<String>,
 }
 
 impl Compiler {
@@ -82,7 +84,12 @@ impl Compiler {
             current: FunctionCompiler::new(String::from("<script>"), FunctionType::Script, 0),
             enclosing: None,
             functions: Vec::new(),
+            exported_symbols: HashSet::new(),
         }
+    }
+
+    pub fn get_exports(&self) -> &HashSet<String> {
+        &self.exported_symbols
     }
 
     pub fn compile(&mut self, statements: Vec<Stmt>) -> Result<(Chunk, Vec<Rc<Chunk>>), String> {
@@ -214,7 +221,7 @@ impl Compiler {
         name: String,
         params: Vec<String>,
         compile_body: F,
-    ) -> Result<(usize, usize, Vec<UpvalueDescriptor>), String>
+    ) -> Result<(Rc<Chunk>, usize, Vec<UpvalueDescriptor>), String>
     where
         F: FnOnce(&mut Self) -> Result<(), String>,
     {
@@ -232,6 +239,7 @@ impl Compiler {
             current: old_current,
             enclosing: old_enclosing,
             functions: Vec::new(),
+            exported_symbols: HashSet::new(),
         }));
 
         // Begin function scope
@@ -255,14 +263,14 @@ impl Compiler {
             self.enclosing = enclosing.enclosing;
         }
 
-        // Store the function chunk and return its index
-        let func_index = self.functions.len();
-        self.functions.push(Rc::new(function_chunk));
+        // Store the function chunk and return it
+        let chunk = Rc::new(function_chunk);
+        self.functions.push(Rc::clone(&chunk));
 
-        Ok((func_index, arity, upvalues))
+        Ok((chunk, arity, upvalues))
     }
 
-    fn compile_function(&mut self, name: String, params: Vec<String>, body: Vec<Stmt>) -> Result<(usize, usize, Vec<UpvalueDescriptor>), String> {
+    fn compile_function(&mut self, name: String, params: Vec<String>, body: Vec<Stmt>) -> Result<(Rc<Chunk>, usize, Vec<UpvalueDescriptor>), String> {
         self.compile_callable(name, params, |compiler| {
             for stmt in body {
                 compiler.compile_stmt(stmt)?;
@@ -350,13 +358,13 @@ impl Compiler {
                 self.emit(OpCode::Pop);
             }
             Stmt::FunDecl { name, params, body } => {
-                let (func_index, arity, upvalues) = self.compile_function(name.clone(), params, body)?;
+                let (chunk, arity, upvalues) = self.compile_function(name.clone(), params, body)?;
 
                 // Create function value
                 let function = Value::Function(Rc::new(Function {
                     name: name.clone(),
                     arity,
-                    chunk_index: func_index,
+                    chunk,
                     upvalue_count: upvalues.len(),
                 }));
 
@@ -409,6 +417,45 @@ impl Compiler {
                     self.emit(OpCode::Constant(const_idx));
                     self.emit(OpCode::DefineGlobal(constructor.name));
                 }
+            }
+            Stmt::Import { path, alias } => {
+                // Emit LoadModule instruction which will load and push the module
+                self.emit(OpCode::LoadModule(path, alias.clone()));
+                // Define the module as a global variable
+                self.emit(OpCode::DefineGlobal(alias));
+            }
+            Stmt::ExportFunDecl { name, params, body } => {
+                // Track this symbol as exported
+                self.exported_symbols.insert(name.clone());
+
+                // Compile like a regular function declaration
+                let (chunk, arity, upvalues) = self.compile_function(name.clone(), params, body)?;
+
+                let function = Value::Function(Rc::new(Function {
+                    name: name.clone(),
+                    arity,
+                    chunk,
+                    upvalue_count: upvalues.len(),
+                }));
+
+                let const_idx = self.add_constant(function);
+
+                if upvalues.is_empty() {
+                    self.emit(OpCode::Constant(const_idx));
+                } else {
+                    self.emit(OpCode::Closure(const_idx, upvalues));
+                }
+
+                // Exports are always global
+                self.emit(OpCode::DefineGlobal(name));
+            }
+            Stmt::ExportVarDecl { name, initializer, is_mutable: _ } => {
+                // Track this symbol as exported
+                self.exported_symbols.insert(name.clone());
+
+                // Compile like a regular global variable declaration
+                self.compile_expr(initializer)?;
+                self.emit(OpCode::DefineGlobal(name));
             }
         }
 
@@ -509,13 +556,13 @@ impl Compiler {
             }
             Expr::Lambda { params, body } => {
                 // Compile lambda similar to a function
-                let (func_index, arity, upvalues) = self.compile_lambda(params, body)?;
+                let (chunk, arity, upvalues) = self.compile_lambda(params, body)?;
 
                 // Create function value
                 let function = Value::Function(Rc::new(Function {
                     name: String::from("<lambda>"),
                     arity,
-                    chunk_index: func_index,
+                    chunk,
                     upvalue_count: upvalues.len(),
                 }));
 
@@ -646,6 +693,12 @@ impl Compiler {
                 let end_offset = self.current_offset();
                 self.current.chunk.patch_jump(end_jump, end_offset);
             }
+            Expr::MemberAccess { object, member } => {
+                // Compile the object (module)
+                self.compile_expr(*object)?;
+                // Emit GetMember instruction
+                self.emit(OpCode::GetMember(member));
+            }
         }
 
         Ok(())
@@ -765,7 +818,7 @@ impl Compiler {
         }
     }
 
-    fn compile_lambda(&mut self, params: Vec<String>, body: LambdaBody) -> Result<(usize, usize, Vec<UpvalueDescriptor>), String> {
+    fn compile_lambda(&mut self, params: Vec<String>, body: LambdaBody) -> Result<(Rc<Chunk>, usize, Vec<UpvalueDescriptor>), String> {
         self.compile_callable(String::from("<lambda>"), params, |compiler| {
             match body {
                 LambdaBody::Expr(expr) => {

@@ -40,6 +40,7 @@ impl Lexer {
             '[' => self.add_token(TokenType::LeftBracket),
             ']' => self.add_token(TokenType::RightBracket),
             ',' => self.add_token(TokenType::Comma),
+            '.' => self.add_token(TokenType::Dot),
             '+' => self.add_token(TokenType::Plus),
             '-' => {
                 if self.match_char('>') {
@@ -171,6 +172,9 @@ impl Lexer {
             "geval" => TokenType::Geval,
             "tipe" => TokenType::Tipe,
             "of" => TokenType::Of,
+            // Module keywords
+            "laai" => TokenType::Laai,
+            "verskaf" => TokenType::Verskaf,
             // Wildcard pattern
             "_" => TokenType::Underscore,
             _ => TokenType::Identifier(lexeme.clone()),
