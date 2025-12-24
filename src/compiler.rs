@@ -270,19 +270,6 @@ impl Compiler {
         Ok((chunk, arity, upvalues))
     }
 
-    fn compile_function(&mut self, name: String, params: Vec<String>, body: Vec<Stmt>) -> Result<(Rc<Chunk>, usize, Vec<UpvalueDescriptor>), String> {
-        self.compile_callable(name, params, |compiler| {
-            for stmt in body {
-                compiler.compile_stmt(stmt)?;
-            }
-            // Implicit nil return if no explicit return
-            let nil_idx = compiler.add_constant(Value::Nil);
-            compiler.emit(OpCode::Constant(nil_idx));
-            compiler.emit(OpCode::Return);
-            Ok(())
-        })
-    }
-
     fn compile_stmt(&mut self, stmt: Stmt) -> Result<(), String> {
         match stmt {
             Stmt::Expression(expr) => {
@@ -357,33 +344,6 @@ impl Compiler {
                 self.current.chunk.patch_jump(exit_jump, after_loop);
                 self.emit(OpCode::Pop);
             }
-            Stmt::FunDecl { name, params, body } => {
-                let (chunk, arity, upvalues) = self.compile_function(name.clone(), params, body)?;
-
-                // Create function value
-                let function = Value::Function(Rc::new(Function {
-                    name: name.clone(),
-                    arity,
-                    chunk,
-                    upvalue_count: upvalues.len(),
-                }));
-
-                let const_idx = self.add_constant(function);
-
-                // Emit Closure opcode if there are upvalues, otherwise just Constant
-                if upvalues.is_empty() {
-                    self.emit(OpCode::Constant(const_idx));
-                } else {
-                    self.emit(OpCode::Closure(const_idx, upvalues));
-                }
-
-                if self.current.scope_depth > 0 {
-                    // Function declarations are immutable
-                    self.add_local(name, false)?;
-                } else {
-                    self.emit(OpCode::DefineGlobal(name));
-                }
-            }
             Stmt::Return { value } => {
                 if self.current.function_type == FunctionType::Script {
                     return Err("Kan nie buite 'n funksie terugkeer nie.".to_string());
@@ -423,31 +383,6 @@ impl Compiler {
                 self.emit(OpCode::LoadModule(path, alias.clone()));
                 // Define the module as a global variable
                 self.emit(OpCode::DefineGlobal(alias));
-            }
-            Stmt::ExportFunDecl { name, params, body } => {
-                // Track this symbol as exported
-                self.exported_symbols.insert(name.clone());
-
-                // Compile like a regular function declaration
-                let (chunk, arity, upvalues) = self.compile_function(name.clone(), params, body)?;
-
-                let function = Value::Function(Rc::new(Function {
-                    name: name.clone(),
-                    arity,
-                    chunk,
-                    upvalue_count: upvalues.len(),
-                }));
-
-                let const_idx = self.add_constant(function);
-
-                if upvalues.is_empty() {
-                    self.emit(OpCode::Constant(const_idx));
-                } else {
-                    self.emit(OpCode::Closure(const_idx, upvalues));
-                }
-
-                // Exports are always global
-                self.emit(OpCode::DefineGlobal(name));
             }
             Stmt::ExportVarDecl { name, initializer, is_mutable: _ } => {
                 // Track this symbol as exported

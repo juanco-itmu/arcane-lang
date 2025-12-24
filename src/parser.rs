@@ -31,9 +31,6 @@ impl Parser {
         } else if self.check(&TokenType::Verskaf) {
             self.advance();
             self.export_declaration()
-        } else if self.check(&TokenType::Funksie) {
-            self.advance();
-            self.fun_declaration()
         } else if self.check(&TokenType::Stel) {
             self.advance();
             self.var_declaration(true)  // stel = mutable
@@ -78,16 +75,9 @@ impl Parser {
     }
 
     fn export_declaration(&mut self) -> Result<Stmt, String> {
-        // verskaf funksie name(...) { ... }
         // verskaf laat name = ...
         // verskaf stel name = ...
-        if self.check(&TokenType::Funksie) {
-            self.advance();
-            let Stmt::FunDecl { name, params, body } = self.fun_declaration()? else {
-                unreachable!()
-            };
-            Ok(Stmt::ExportFunDecl { name, params, body })
-        } else if self.check(&TokenType::Laat) {
+        if self.check(&TokenType::Laat) {
             self.advance();
             let Stmt::VarDecl { name, initializer, is_mutable } = self.var_declaration(false)? else {
                 unreachable!()
@@ -101,7 +91,7 @@ impl Parser {
             Ok(Stmt::ExportVarDecl { name, initializer, is_mutable })
         } else {
             Err(format!(
-                "Verwag 'funksie', 'laat', of 'stel' na 'verskaf'. (lyn {})",
+                "Verwag 'laat' of 'stel' na 'verskaf'. (lyn {})",
                 self.peek().line
             ))
         }
@@ -157,37 +147,6 @@ impl Parser {
         };
 
         Ok(TypeConstructor { name, fields })
-    }
-
-    fn fun_declaration(&mut self) -> Result<Stmt, String> {
-        let name = self.consume_identifier("Verwag funksie naam.")?;
-
-        self.consume(&TokenType::LeftParen, "Verwag '(' na funksie naam.")?;
-        let mut params = Vec::new();
-
-        if !self.check(&TokenType::RightParen) {
-            loop {
-                if params.len() >= 255 {
-                    return Err(format!(
-                        "Kan nie meer as 255 parameters hê nie. (lyn {})",
-                        self.peek().line
-                    ));
-                }
-                params.push(self.consume_identifier("Verwag parameter naam.")?);
-
-                if !self.check(&TokenType::Comma) {
-                    break;
-                }
-                self.advance(); // consume comma
-            }
-        }
-
-        self.consume(&TokenType::RightParen, "Verwag ')' na parameters.")?;
-        self.skip_newlines();
-        self.consume(&TokenType::LeftBrace, "Verwag '{' voor funksie liggaam.")?;
-        let body = self.block()?;
-
-        Ok(Stmt::FunDecl { name, params, body })
     }
 
     fn var_declaration(&mut self, is_mutable: bool) -> Result<Stmt, String> {

@@ -116,12 +116,6 @@ pub enum Stmt {
         condition: Expr,
         body: Box<Stmt>,
     },
-    // Function declaration
-    FunDecl {
-        name: String,
-        params: Vec<String>,
-        body: Vec<Stmt>,
-    },
     // Return statement
     Return {
         value: Option<Expr>,
@@ -135,12 +129,6 @@ pub enum Stmt {
     Import {
         path: String,
         alias: String,
-    },
-    // Exported function declaration
-    ExportFunDecl {
-        name: String,
-        params: Vec<String>,
-        body: Vec<Stmt>,
     },
     // Exported variable declaration
     ExportVarDecl {

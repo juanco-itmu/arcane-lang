@@ -360,34 +360,12 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                 }
             }
         }
-        // Track 'funksie' declarations - the function name is also a valid identifier
-        if matches!(tokens[j].token_type, TokenType::Funksie) {
-            if j + 1 < tokens.len() {
-                if let TokenType::Identifier(name) = &tokens[j + 1].token_type {
-                    declared_vars.insert(name.clone());
-                    declared_funcs.insert(name.clone());
-                }
-            }
-        }
         j += 1;
     }
 
     // Second pass: collect function parameters
     j = 0;
     while j < tokens.len() {
-        // For 'funksie name(' - collect parameters
-        if matches!(tokens[j].token_type, TokenType::Funksie) {
-            if j + 2 < tokens.len() && matches!(tokens[j + 2].token_type, TokenType::LeftParen) {
-                let mut k = j + 3;
-                // Collect parameters until closing paren
-                while k < tokens.len() && !matches!(tokens[k].token_type, TokenType::RightParen) {
-                    if let TokenType::Identifier(name) = &tokens[k].token_type {
-                        declared_vars.insert(name.clone());
-                    }
-                    k += 1;
-                }
-            }
-        }
         // For 'fn(' lambda - collect parameters
         if matches!(tokens[j].token_type, TokenType::Fn) {
             if j + 1 < tokens.len() && matches!(tokens[j + 1].token_type, TokenType::LeftParen) {
@@ -583,34 +561,17 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                 }
             }
             TokenType::Funksie => {
-                // Check for: funksie <name>(<params>) {
-                if i + 1 < tokens.len() {
-                    if !matches!(tokens[i + 1].token_type, TokenType::Identifier(_)) {
-                        diagnostics.push(Diagnostic {
-                            range: Range {
-                                start: Position { line: token.line, character: token.end_col },
-                                end: Position { line: token.line, character: token.end_col + 1 },
-                            },
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            source: Some("arkaan".to_string()),
-                            message: "Verwag funksie naam na 'funksie'".to_string(),
-                            ..Default::default()
-                        });
-                    } else if i + 2 < tokens.len()
-                        && !matches!(tokens[i + 2].token_type, TokenType::LeftParen)
-                    {
-                        diagnostics.push(Diagnostic {
-                            range: Range {
-                                start: Position { line: tokens[i + 1].line, character: tokens[i + 1].end_col },
-                                end: Position { line: tokens[i + 1].line, character: tokens[i + 1].end_col + 1 },
-                            },
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            source: Some("arkaan".to_string()),
-                            message: "Verwag '(' na funksie naam".to_string(),
-                            ..Default::default()
-                        });
-                    }
-                }
+                // 'funksie' keyword is deprecated - use fn() expressions instead
+                diagnostics.push(Diagnostic {
+                    range: Range {
+                        start: Position { line: token.line, character: token.start_col },
+                        end: Position { line: token.line, character: token.end_col },
+                    },
+                    severity: Some(DiagnosticSeverity::ERROR),
+                    source: Some("arkaan".to_string()),
+                    message: "'funksie' is nie meer ondersteun nie. Gebruik 'laat naam = fn(params) ...' in plaas daarvan.".to_string(),
+                    ..Default::default()
+                });
             }
             TokenType::Fn => {
                 // Check for: fn(<params>) <expr> or fn(<params>) { ... }
@@ -734,9 +695,6 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                     TokenType::Stel | TokenType::Laat | TokenType::Mut
                 );
 
-                // Check for funksie declaration context
-                let is_funksie_name = i > 0 && matches!(tokens[i - 1].token_type, TokenType::Funksie);
-
                 // Check for tipe declaration context
                 let is_type_name = i > 0 && matches!(tokens[i - 1].token_type, TokenType::Tipe);
 
@@ -744,8 +702,8 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                 let is_function_call = i + 1 < tokens.len()
                     && matches!(tokens[i + 1].token_type, TokenType::LeftParen);
 
-                if is_function_call && !is_funksie_name && !is_type_name {
-                    // Valid if: built-in, user-defined funksie, ADT constructor, or variable holding function
+                if is_function_call && !is_type_name {
+                    // Valid if: built-in, ADT constructor, or variable holding function
                     let is_valid = builtin_funcs.contains(name.as_str())
                         || declared_funcs.contains(name)
                         || declared_vars.contains(name); // Variable could hold a function
@@ -762,7 +720,7 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                             ..Default::default()
                         });
                     }
-                } else if !is_declaration && !is_funksie_name && !is_type_name && !in_pattern {
+                } else if !is_declaration && !is_type_name && !in_pattern {
                     if !declared_vars.contains(name) && !declared_funcs.contains(name) {
                         diagnostics.push(Diagnostic {
                             range: Range {
@@ -876,15 +834,15 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
                     "Boolean false"
                 )),
                 TokenType::Funksie => Some((
-                    "**funksie** (sleutelwoord)\n\nDefinieer 'n funksie.\n\n```arkaan\nfunksie groet(naam) {\n    druk(\"Hallo \" + naam)\n}\n```",
-                    "Define a function"
+                    "**funksie** (verouderd)\n\n⚠️ Hierdie sleutelwoord is nie meer ondersteun nie.\n\nGebruik lambda uitdrukkings in plaas daarvan:\n\n```arkaan\nlaat groet = fn(naam) {\n    druk(\"Hallo \" + naam)\n}\n```",
+                    "Deprecated - use fn() expressions instead"
                 )),
                 TokenType::Fn => Some((
-                    "**fn** (sleutelwoord)\n\nSkep 'n anonieme funksie (lambda).\n\n```arkaan\nlaat dubbel = fn(x) x * 2\n```",
-                    "Create anonymous function (lambda)"
+                    "**fn** (sleutelwoord)\n\nSkep 'n funksie uitdrukking.\n\n```arkaan\nlaat dubbel = fn(x) x * 2\n\nlaat groet = fn(naam) {\n    druk(\"Hallo \" + naam)\n}\n```",
+                    "Create function expression"
                 )),
                 TokenType::Gee => Some((
-                    "**gee** (sleutelwoord)\n\nGee 'n waarde terug uit 'n funksie.\n\n```arkaan\nfunksie kwadraat(x) {\n    gee x * x\n}\n```",
+                    "**gee** (sleutelwoord)\n\nGee 'n waarde terug uit 'n funksie.\n\n```arkaan\nlaat kwadraat = fn(x) {\n    gee x * x\n}\n```",
                     "Return value from function"
                 )),
                 TokenType::Laat => Some((
@@ -1002,17 +960,9 @@ pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
         },
         // Functions
         CompletionItem {
-            label: "funksie".to_string(),
-            kind: Some(CompletionItemKind::KEYWORD),
-            detail: Some("Definieer funksie".to_string()),
-            insert_text: Some("funksie ${1:naam}(${2:params}) {\n\t${0}\n}".to_string()),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        },
-        CompletionItem {
             label: "fn".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            detail: Some("Lambda uitdrukking".to_string()),
+            detail: Some("Funksie uitdrukking".to_string()),
             insert_text: Some("fn(${1:params}) ${0:uitdrukking}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..Default::default()
@@ -1202,7 +1152,6 @@ pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
     let (tokens, _) = lexer.scan_tokens();
 
     let mut seen_vars = std::collections::HashSet::new();
-    let mut seen_funcs = std::collections::HashSet::new();
     let mut i = 0;
     while i < tokens.len() {
         // Variable declarations (stel or laat)
@@ -1225,24 +1174,6 @@ pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
                             label: name.clone(),
                             kind: Some(CompletionItemKind::VARIABLE),
                             detail: Some("Veranderlike".to_string()),
-                            ..Default::default()
-                        });
-                    }
-                }
-            }
-        }
-        // Function declarations
-        if matches!(tokens[i].token_type, TokenType::Funksie) {
-            if i + 1 < tokens.len() {
-                if let TokenType::Identifier(name) = &tokens[i + 1].token_type {
-                    if !seen_funcs.contains(name) {
-                        seen_funcs.insert(name.clone());
-                        completions.push(CompletionItem {
-                            label: name.clone(),
-                            kind: Some(CompletionItemKind::FUNCTION),
-                            detail: Some("Funksie".to_string()),
-                            insert_text: Some(format!("{}(${{0}})", name)),
-                            insert_text_format: Some(InsertTextFormat::SNIPPET),
                             ..Default::default()
                         });
                     }
