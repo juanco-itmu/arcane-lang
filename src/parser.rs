@@ -249,7 +249,37 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr, String> {
-        self.or()
+        self.pipe()
+    }
+
+    fn pipe(&mut self) -> Result<Expr, String> {
+        let mut expr = self.or()?;
+
+        while self.check(&TokenType::Arrow) {
+            self.advance();
+            let right = self.or()?;
+
+            expr = match right {
+                Expr::Call { callee, mut arguments } => {
+                    arguments.insert(0, expr);
+                    Expr::Call { callee, arguments }
+                }
+                Expr::Variable(_) | Expr::MemberAccess { .. } |
+                Expr::Lambda { .. } | Expr::Grouping(_) => {
+                    Expr::Call {
+                        callee: Box::new(right),
+                        arguments: vec![expr],
+                    }
+                }
+                _ => {
+                    return Err(format!(
+                        "Die regterkant van '->' moet 'n funksie of funksie-oproep wees. (lyn {})",
+                        self.peek().line
+                    ));
+                }
+            };
+        }
+        Ok(expr)
     }
 
     fn or(&mut self) -> Result<Expr, String> {
@@ -518,7 +548,7 @@ impl Parser {
         while !self.check(&TokenType::RightBrace) && !self.is_at_end() {
             self.consume(&TokenType::Geval, "Verwag 'geval' in pas-uitdrukking.")?;
             let pattern = self.parse_pattern()?;
-            self.consume(&TokenType::Arrow, "Verwag '=>' na patroon.")?;
+            self.consume(&TokenType::FatArrow, "Verwag '=>' na patroon.")?;
             let body = self.expression()?;
             self.skip_newlines();
 

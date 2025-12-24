@@ -1,0 +1,32 @@
+// Test pipe operator ->
+
+laat getalle = [1, 2, 3, 4, 5]
+
+// Test 1: Single line chained pipes
+laat result = getalle -> kaart(fn(x) x * 2) -> filter(fn(x) x > 4)
+druk(result)
+
+// Test 2: Simple pipe
+laat squared = [1, 2, 3] -> kaart(fn(x) x * x)
+druk(squared)
+
+// Test 3: Bare function
+laat eerste = getalle -> kop
+druk(eerste)
+
+// Test 4: Pipe to lambda
+laat dubbel = 5 -> (fn(x) x * 2)
+druk(dubbel)
+
+// Test 5: Verify pattern matching with => still works
+laat getal = 2
+laat naam = pas (getal) {
+    geval 1 => "een"
+    geval 2 => "twee"
+    geval _ => "ander"
+}
+druk(naam)
+
+// Test 6: Complex pipeline
+laat som = [1, 2, 3, 4, 5] -> filter(fn(x) x % 2 == 0) -> vou(0, fn(a, x) a + x)
+druk(som)

@@ -66,7 +66,7 @@ impl Lexer {
                 let token = if self.match_char('=') {
                     TokenType::EqualEqual
                 } else if self.match_char('>') {
-                    TokenType::Arrow  // => for pattern matching
+                    TokenType::FatArrow  // => for pattern matching
                 } else {
                     TokenType::Equal
                 };

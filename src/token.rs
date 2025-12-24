@@ -54,7 +54,8 @@ pub enum TokenType {
     Comma,          // ,
     Dot,            // . (member access)
     Underscore,     // _ (wildcard pattern)
-    Arrow,          // -> (optional, for type annotations)
+    Arrow,          // -> (pipe operator)
+    FatArrow,       // => (pattern matching)
     Newline,
 
     // End of file
