@@ -1,7 +1,6 @@
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenType {
     // Keywords (Afrikaans) - Original
-    Stel,       // variable declaration (deprecated, use Laat)
     As,         // if
     Anders,     // else
     Terwyl,     // while
@@ -13,8 +12,7 @@ pub enum TokenType {
     Funksie,    // function definition
     Fn,         // lambda/anonymous function
     Gee,        // return
-    Laat,       // let (immutable binding)
-    Mut,        // mutable marker
+    Laat,       // let (constant binding)
     Pas,        // match
     Geval,      // case
     Tipe,       // type definition

@@ -35,7 +35,7 @@ npm run watch                  # Watch mode
 Source → Lexer → Tokens → Parser → AST → Compiler → Bytecode → VM → Output
 ```
 
-- `token.rs` - Token types for Afrikaans keywords (`stel`, `as`, `terwyl`, `druk`, etc.)
+- `token.rs` - Token types for Afrikaans keywords (`laat`, `as`, `terwyl`, `druk`, etc.)
 - `lexer.rs` - Tokenizes source code
 - `parser.rs` - Builds AST from tokens
 - `ast.rs` - AST node definitions
@@ -57,13 +57,20 @@ Source → Lexer → Tokens → Parser → AST → Compiler → Bytecode → VM 
 
 | Afrikaans | English | Purpose |
 |-----------|---------|---------|
-| `stel`    | set     | Variable declaration |
+| `laat`    | let     | Constant declaration (immutable) |
 | `as`      | if      | Conditional |
 | `anders`  | else    | Else branch |
 | `terwyl`  | while   | While loop |
 | `druk`    | print   | Output |
 | `waar`    | true    | Boolean true |
 | `vals`    | false   | Boolean false |
+| `fn`      | fn      | Lambda/function expression |
+| `gee`     | return  | Return from function |
+| `pas`     | match   | Pattern matching |
+| `geval`   | case    | Match arm |
+| `tipe`    | type    | Algebraic data type |
+
+Note: All bindings are immutable (constants). There are no mutable variables.
 
 ## Development Workflow
 

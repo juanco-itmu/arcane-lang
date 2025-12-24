@@ -14,7 +14,6 @@ struct Local {
     name: String,
     depth: usize,
     is_captured: bool,  // True if this local is captured by a closure
-    is_mutable: bool,   // True if this local can be reassigned
 }
 
 #[derive(Debug, Clone)]
@@ -63,7 +62,6 @@ impl FunctionCompiler {
                 name: String::new(),
                 depth: 0,
                 is_captured: false,
-                is_mutable: false,
             });
         }
 
@@ -121,7 +119,7 @@ impl Compiler {
         }
     }
 
-    fn add_local(&mut self, name: String, is_mutable: bool) -> Result<(), String> {
+    fn add_local(&mut self, name: String) -> Result<(), String> {
         // Check for duplicate in current scope
         for local in self.current.locals.iter().rev() {
             if local.depth < self.current.scope_depth {
@@ -129,7 +127,7 @@ impl Compiler {
             }
             if local.name == name {
                 return Err(format!(
-                    "Veranderlike '{}' is reeds in hierdie omvang gedefinieer.",
+                    "Konstante '{}' is reeds in hierdie omvang gedefinieer.",
                     name
                 ));
             }
@@ -139,7 +137,6 @@ impl Compiler {
             name,
             depth: self.current.scope_depth,
             is_captured: false,
-            is_mutable,
         });
         Ok(())
     }
@@ -151,22 +148,6 @@ impl Compiler {
             }
         }
         None
-    }
-
-    fn check_local_mutable(&self, name: &str) -> Result<(), String> {
-        for local in self.current.locals.iter().rev() {
-            if local.name == name {
-                if !local.is_mutable {
-                    return Err(format!(
-                        "Kan nie 'n onveranderlike veranderlike '{}' verander nie. Gebruik 'stel' in plaas van 'laat'.",
-                        name
-                    ));
-                }
-                return Ok(());
-            }
-        }
-        // Not a local, might be global (globals are mutable for now)
-        Ok(())
     }
 
     fn resolve_upvalue(&mut self, name: &str) -> Option<usize> {
@@ -245,9 +226,9 @@ impl Compiler {
         // Begin function scope
         self.begin_scope();
 
-        // Bind parameters as locals (immutable by default)
+        // Bind parameters as locals
         for param in params {
-            self.add_local(param, false)?;
+            self.add_local(param)?;
         }
 
         // Compile body using provided closure
@@ -280,15 +261,15 @@ impl Compiler {
                 self.compile_expr(expr)?;
                 self.emit(OpCode::Print);
             }
-            Stmt::VarDecl { name, initializer, is_mutable } => {
+            Stmt::VarDecl { name, initializer } => {
                 self.compile_expr(initializer)?;
 
                 if self.current.scope_depth > 0 {
-                    // Local variable
-                    self.add_local(name, is_mutable)?;
+                    // Local constant
+                    self.add_local(name)?;
                     // Value is already on stack, that's the local
                 } else {
-                    // Global variable (globals are always mutable for now)
+                    // Global constant
                     self.emit(OpCode::DefineGlobal(name));
                 }
             }
@@ -384,11 +365,11 @@ impl Compiler {
                 // Define the module as a global variable
                 self.emit(OpCode::DefineGlobal(alias));
             }
-            Stmt::ExportVarDecl { name, initializer, is_mutable: _ } => {
+            Stmt::ExportVarDecl { name, initializer } => {
                 // Track this symbol as exported
                 self.exported_symbols.insert(name.clone());
 
-                // Compile like a regular global variable declaration
+                // Compile like a regular global constant declaration
                 self.compile_expr(initializer)?;
                 self.emit(OpCode::DefineGlobal(name));
             }
@@ -409,17 +390,6 @@ impl Compiler {
                     VarLocation::Local(slot) => self.emit(OpCode::GetLocal(slot)),
                     VarLocation::Upvalue(idx) => self.emit(OpCode::GetUpvalue(idx)),
                     VarLocation::Global => self.emit(OpCode::GetGlobal(name)),
-                };
-            }
-            Expr::Assign { name, value } => {
-                // Check if the variable is mutable before allowing assignment
-                self.check_local_mutable(&name)?;
-
-                self.compile_expr(*value)?;
-                match self.resolve_variable(&name) {
-                    VarLocation::Local(slot) => self.emit(OpCode::SetLocal(slot)),
-                    VarLocation::Upvalue(idx) => self.emit(OpCode::SetUpvalue(idx)),
-                    VarLocation::Global => self.emit(OpCode::SetGlobal(name)),
                 };
             }
             Expr::Grouping(inner) => {
@@ -532,7 +502,7 @@ impl Compiler {
                 // Evaluate the value to match and store as hidden local
                 // This ensures pattern bindings have correct stack indices
                 self.compile_expr(*value)?;
-                self.add_local(String::from(MATCH_SCRUTINEE), false)?;
+                self.add_local(String::from(MATCH_SCRUTINEE))?;
                 let scrutinee_slot = self.resolve_local(MATCH_SCRUTINEE).unwrap();
 
                 // Track jump addresses
@@ -673,9 +643,9 @@ impl Compiler {
                 Ok(None)
             }
             Pattern::Variable(name) => {
-                // Bind the value to a local variable
+                // Bind the value to a local constant
                 // The value is on top of stack and becomes the local's storage
-                self.add_local(name.clone(), false)?;
+                self.add_local(name.clone())?;
                 Ok(None)
             }
             Pattern::Literal(lit) => {
@@ -716,7 +686,7 @@ impl Compiler {
                 } else {
                     // For multi-field constructors, save the ADT as a hidden local
                     // This ensures field extractions use correct stack indexing
-                    self.add_local(String::from(CTOR_HIDDEN_LOCAL), false)?;
+                    self.add_local(String::from(CTOR_HIDDEN_LOCAL))?;
                     let ctor_slot = self.resolve_local(CTOR_HIDDEN_LOCAL).unwrap();
 
                     // Extract each field value and process its pattern

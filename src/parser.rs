@@ -31,12 +31,9 @@ impl Parser {
         } else if self.check(&TokenType::Verskaf) {
             self.advance();
             self.export_declaration()
-        } else if self.check(&TokenType::Stel) {
-            self.advance();
-            self.var_declaration(true)  // stel = mutable
         } else if self.check(&TokenType::Laat) {
             self.advance();
-            self.var_declaration(false)  // laat = immutable
+            self.var_declaration()
         } else if self.check(&TokenType::Tipe) {
             self.advance();
             self.type_declaration()
@@ -76,22 +73,15 @@ impl Parser {
 
     fn export_declaration(&mut self) -> Result<Stmt, String> {
         // verskaf laat name = ...
-        // verskaf stel name = ...
         if self.check(&TokenType::Laat) {
             self.advance();
-            let Stmt::VarDecl { name, initializer, is_mutable } = self.var_declaration(false)? else {
+            let Stmt::VarDecl { name, initializer } = self.var_declaration()? else {
                 unreachable!()
             };
-            Ok(Stmt::ExportVarDecl { name, initializer, is_mutable })
-        } else if self.check(&TokenType::Stel) {
-            self.advance();
-            let Stmt::VarDecl { name, initializer, is_mutable } = self.var_declaration(true)? else {
-                unreachable!()
-            };
-            Ok(Stmt::ExportVarDecl { name, initializer, is_mutable })
+            Ok(Stmt::ExportVarDecl { name, initializer })
         } else {
             Err(format!(
-                "Verwag 'laat' of 'stel' na 'verskaf'. (lyn {})",
+                "Verwag 'laat' na 'verskaf'. (lyn {})",
                 self.peek().line
             ))
         }
@@ -149,12 +139,12 @@ impl Parser {
         Ok(TypeConstructor { name, fields })
     }
 
-    fn var_declaration(&mut self, is_mutable: bool) -> Result<Stmt, String> {
-        let name = self.consume_identifier("Verwag veranderlike naam.")?;
-        self.consume(&TokenType::Equal, "Verwag '=' na veranderlike naam.")?;
+    fn var_declaration(&mut self) -> Result<Stmt, String> {
+        let name = self.consume_identifier("Verwag konstante naam.")?;
+        self.consume(&TokenType::Equal, "Verwag '=' na konstante naam.")?;
         let initializer = self.expression()?;
         self.consume_newline_or_eof()?;
-        Ok(Stmt::VarDecl { name, initializer, is_mutable })
+        Ok(Stmt::VarDecl { name, initializer })
     }
 
     fn statement(&mut self) -> Result<Stmt, String> {
@@ -259,27 +249,7 @@ impl Parser {
     }
 
     fn expression(&mut self) -> Result<Expr, String> {
-        self.assignment()
-    }
-
-    fn assignment(&mut self) -> Result<Expr, String> {
-        let expr = self.or()?;
-
-        if self.check(&TokenType::Equal) {
-            self.advance();
-            let value = self.assignment()?;
-
-            if let Expr::Variable(name) = expr {
-                return Ok(Expr::Assign {
-                    name,
-                    value: Box::new(value),
-                });
-            }
-
-            return Err("Ongeldige toewysing teiken.".to_string());
-        }
-
-        Ok(expr)
+        self.or()
     }
 
     fn or(&mut self) -> Result<Expr, String> {

@@ -6,9 +6,9 @@ use tower_lsp::lsp_types::*;
 #[derive(Debug, Clone, PartialEq)]
 enum TokenType {
     // Original keywords
-    Stel, As, Anders, Terwyl, Druk, Waar, Vals,
+    As, Anders, Terwyl, Druk, Waar, Vals,
     // Functional keywords
-    Funksie, Fn, Gee, Laat, Mut,
+    Funksie, Fn, Gee, Laat,
     // Pattern matching
     Pas, Geval, Tipe,
     // Literals and identifiers
@@ -195,7 +195,6 @@ impl Lexer {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
         let token_type = match lexeme.as_str() {
             // Original keywords
-            "stel" => TokenType::Stel,
             "as" => TokenType::As,
             "anders" => TokenType::Anders,
             "terwyl" => TokenType::Terwyl,
@@ -207,7 +206,6 @@ impl Lexer {
             "fn" => TokenType::Fn,
             "gee" => TokenType::Gee,
             "laat" => TokenType::Laat,
-            "mut" => TokenType::Mut,
             // Pattern matching
             "pas" => TokenType::Pas,
             "geval" => TokenType::Geval,
@@ -334,28 +332,13 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
         "lengte", "kop", "stert", "leeg", "voeg_by", "heg_aan", "ketting", "omgekeer",
     ].iter().cloned().collect();
 
-    // First pass: collect all declared variables and function names
+    // First pass: collect all declared constants
     let mut j = 0;
     while j < tokens.len() {
-        // Track 'stel' declarations
-        if matches!(tokens[j].token_type, TokenType::Stel) {
+        // Track 'laat' declarations
+        if matches!(tokens[j].token_type, TokenType::Laat) {
             if j + 1 < tokens.len() {
                 if let TokenType::Identifier(name) = &tokens[j + 1].token_type {
-                    declared_vars.insert(name.clone());
-                }
-            }
-        }
-        // Track 'laat' declarations (with optional 'mut')
-        if matches!(tokens[j].token_type, TokenType::Laat) {
-            let name_offset = if j + 1 < tokens.len()
-                && matches!(tokens[j + 1].token_type, TokenType::Mut)
-            {
-                2 // laat mut name
-            } else {
-                1 // laat name
-            };
-            if j + name_offset < tokens.len() {
-                if let TokenType::Identifier(name) = &tokens[j + name_offset].token_type {
                     declared_vars.insert(name.clone());
                 }
             }
@@ -494,8 +477,8 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                     });
                 }
             }
-            TokenType::Stel => {
-                // Check for: stel <identifier> = <expr>
+            TokenType::Laat => {
+                // Check for: laat <identifier> = <expr>
                 if i + 1 < tokens.len() {
                     if !matches!(tokens[i + 1].token_type, TokenType::Identifier(_)) {
                         diagnostics.push(Diagnostic {
@@ -505,10 +488,12 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                             },
                             severity: Some(DiagnosticSeverity::ERROR),
                             source: Some("arkaan".to_string()),
-                            message: "Verwag veranderlike naam na 'stel'".to_string(),
+                            message: "Verwag konstante naam na 'laat'".to_string(),
                             ..Default::default()
                         });
-                    } else if i + 2 < tokens.len() && !matches!(tokens[i + 2].token_type, TokenType::Equal) {
+                    } else if i + 2 < tokens.len()
+                        && !matches!(tokens[i + 2].token_type, TokenType::Equal)
+                    {
                         diagnostics.push(Diagnostic {
                             range: Range {
                                 start: Position { line: tokens[i + 1].line, character: tokens[i + 1].end_col },
@@ -516,45 +501,7 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                             },
                             severity: Some(DiagnosticSeverity::ERROR),
                             source: Some("arkaan".to_string()),
-                            message: "Verwag '=' na veranderlike naam".to_string(),
-                            ..Default::default()
-                        });
-                    }
-                }
-            }
-            TokenType::Laat => {
-                // Check for: laat [mut] <identifier> = <expr>
-                let next_idx = if i + 1 < tokens.len()
-                    && matches!(tokens[i + 1].token_type, TokenType::Mut)
-                {
-                    i + 2 // laat mut name
-                } else {
-                    i + 1 // laat name
-                };
-
-                if next_idx < tokens.len() {
-                    if !matches!(tokens[next_idx].token_type, TokenType::Identifier(_)) {
-                        diagnostics.push(Diagnostic {
-                            range: Range {
-                                start: Position { line: token.line, character: token.start_col },
-                                end: Position { line: token.line, character: token.end_col },
-                            },
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            source: Some("arkaan".to_string()),
-                            message: "Verwag veranderlike naam na 'laat' (of 'laat mut')".to_string(),
-                            ..Default::default()
-                        });
-                    } else if next_idx + 1 < tokens.len()
-                        && !matches!(tokens[next_idx + 1].token_type, TokenType::Equal)
-                    {
-                        diagnostics.push(Diagnostic {
-                            range: Range {
-                                start: Position { line: tokens[next_idx].line, character: tokens[next_idx].end_col },
-                                end: Position { line: tokens[next_idx].line, character: tokens[next_idx].end_col + 1 },
-                            },
-                            severity: Some(DiagnosticSeverity::ERROR),
-                            source: Some("arkaan".to_string()),
-                            message: "Verwag '=' na veranderlike naam".to_string(),
+                            message: "Verwag '=' na konstante naam".to_string(),
                             ..Default::default()
                         });
                     }
@@ -689,10 +636,10 @@ fn parse_for_diagnostics(tokens: &[Token]) -> Vec<Diagnostic> {
                     continue;
                 }
 
-                // Check if this identifier is used as a variable (not being declared)
+                // Check if this identifier is used as a constant (not being declared)
                 let is_declaration = i > 0 && matches!(
                     tokens[i - 1].token_type,
-                    TokenType::Stel | TokenType::Laat | TokenType::Mut
+                    TokenType::Laat
                 );
 
                 // Check for tipe declaration context
@@ -805,10 +752,6 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
             && position.character < token.end_col
         {
             let info = match &token.token_type {
-                TokenType::Stel => Some((
-                    "**stel** (sleutelwoord)\n\nVerklaar 'n nuwe veranderlike.\n\n```arkaan\nstel x = 10\n```",
-                    "Declare a new variable"
-                )),
                 TokenType::As => Some((
                     "**as** (sleutelwoord)\n\nVoorwaardelike stelling (if statement).\n\n```arkaan\nas x > 5 {\n    druk(x)\n}\n```",
                     "Conditional statement (if)"
@@ -818,7 +761,7 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
                     "Else branch"
                 )),
                 TokenType::Terwyl => Some((
-                    "**terwyl** (sleutelwoord)\n\nHerhaal terwyl voorwaarde waar is.\n\n```arkaan\nterwyl (x > 0) {\n    druk(x)\n    stel x = x - 1\n}\n```",
+                    "**terwyl** (sleutelwoord)\n\nHerhaal terwyl voorwaarde waar is (gebruik met konstantes).\n\n```arkaan\nlaat teller = fn(n) {\n    as n > 0 {\n        druk(n)\n        teller(n - 1)\n    }\n}\nteller(5)\n```",
                     "While loop"
                 )),
                 TokenType::Druk => Some((
@@ -846,12 +789,8 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
                     "Return value from function"
                 )),
                 TokenType::Laat => Some((
-                    "**laat** (sleutelwoord)\n\nVerklaar 'n onveranderlike veranderlike.\n\n```arkaan\nlaat x = 42\n```",
-                    "Declare immutable variable"
-                )),
-                TokenType::Mut => Some((
-                    "**mut** (sleutelwoord)\n\nVerklaar 'n veranderlike wat kan verander (gebruik met laat).\n\n```arkaan\nlaat mut teller = 0\n```",
-                    "Declare mutable variable"
+                    "**laat** (sleutelwoord)\n\nVerklaar 'n konstante.\n\n```arkaan\nlaat x = 42\n```",
+                    "Declare constant"
                 )),
                 TokenType::Pas => Some((
                     "**pas** (sleutelwoord)\n\nPatroon-passing uitdrukking.\n\n```arkaan\npas(waarde) {\n    geval Sommige(x) => x\n    geval Niks => 0\n}\n```",
@@ -941,20 +880,12 @@ pub fn get_hover_info(text: &str, position: Position) -> Option<Hover> {
 
 pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
     let mut completions = vec![
-        // Variable declarations
+        // Constant declarations
         CompletionItem {
             label: "laat".to_string(),
             kind: Some(CompletionItemKind::KEYWORD),
-            detail: Some("Verklaar onveranderlike veranderlike".to_string()),
+            detail: Some("Verklaar konstante".to_string()),
             insert_text: Some("laat ${1:naam} = ${0:waarde}".to_string()),
-            insert_text_format: Some(InsertTextFormat::SNIPPET),
-            ..Default::default()
-        },
-        CompletionItem {
-            label: "stel".to_string(),
-            kind: Some(CompletionItemKind::KEYWORD),
-            detail: Some("Verklaar veranderlike (veranderlik)".to_string()),
-            insert_text: Some("stel ${1:naam} = ${0:waarde}".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
             ..Default::default()
         },
@@ -1147,33 +1078,23 @@ pub fn get_completions(text: &str, position: Position) -> Vec<CompletionItem> {
         },
     ];
 
-    // Extract variable names from the document
+    // Extract constant names from the document
     let mut lexer = Lexer::new(text);
     let (tokens, _) = lexer.scan_tokens();
 
     let mut seen_vars = std::collections::HashSet::new();
     let mut i = 0;
     while i < tokens.len() {
-        // Variable declarations (stel or laat)
-        if matches!(tokens[i].token_type, TokenType::Stel | TokenType::Laat) {
-            // Check for 'mut' keyword after 'laat'
-            let name_offset = if matches!(tokens[i].token_type, TokenType::Laat)
-                && i + 1 < tokens.len()
-                && matches!(tokens[i + 1].token_type, TokenType::Mut)
-            {
-                2 // laat mut name
-            } else {
-                1 // stel name or laat name
-            };
-
-            if i + name_offset < tokens.len() {
-                if let TokenType::Identifier(name) = &tokens[i + name_offset].token_type {
+        // Constant declarations (laat)
+        if matches!(tokens[i].token_type, TokenType::Laat) {
+            if i + 1 < tokens.len() {
+                if let TokenType::Identifier(name) = &tokens[i + 1].token_type {
                     if !seen_vars.contains(name) {
                         seen_vars.insert(name.clone());
                         completions.push(CompletionItem {
                             label: name.clone(),
-                            kind: Some(CompletionItemKind::VARIABLE),
-                            detail: Some("Veranderlike".to_string()),
+                            kind: Some(CompletionItemKind::CONSTANT),
+                            detail: Some("Konstante".to_string()),
                             ..Default::default()
                         });
                     }

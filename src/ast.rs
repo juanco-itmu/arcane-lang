@@ -14,10 +14,6 @@ pub enum Expr {
     Literal(Literal),
     Variable(String),
     Grouping(Box<Expr>),
-    Assign {
-        name: String,
-        value: Box<Expr>,
-    },
     // Function call
     Call {
         callee: Box<Expr>,
@@ -104,7 +100,6 @@ pub enum Stmt {
     VarDecl {
         name: String,
         initializer: Expr,
-        is_mutable: bool,  // true for 'stel', false for 'laat'
     },
     Block(Vec<Stmt>),
     If {
@@ -130,10 +125,9 @@ pub enum Stmt {
         path: String,
         alias: String,
     },
-    // Exported variable declaration
+    // Exported constant declaration
     ExportVarDecl {
         name: String,
         initializer: Expr,
-        is_mutable: bool,
     },
 }

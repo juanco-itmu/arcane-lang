@@ -155,7 +155,6 @@ impl Lexer {
         let lexeme: String = self.source[self.start..self.current].iter().collect();
         let token_type = match lexeme.as_str() {
             // Original keywords
-            "stel" => TokenType::Stel,
             "as" => TokenType::As,
             "anders" => TokenType::Anders,
             "terwyl" => TokenType::Terwyl,
@@ -167,7 +166,6 @@ impl Lexer {
             "fn" => TokenType::Fn,
             "gee" => TokenType::Gee,
             "laat" => TokenType::Laat,
-            "mut" => TokenType::Mut,
             "pas" => TokenType::Pas,
             "geval" => TokenType::Geval,
             "tipe" => TokenType::Tipe,
